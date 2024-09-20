@@ -8,7 +8,7 @@
 	branch = main
 [submodule "Kinc"]
 	path = Kinc
-	url = https://github.com/Kode/Kinc.git
+	url = https://github.com/e2002e/Kinc.git
 	branch = main
 [submodule "Tools/linux_x64"]
 	path = Tools/linux_x64

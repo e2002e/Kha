@@ -8,8 +8,8 @@
 	branch = main
 [submodule "Kinc"]
 	path = Kinc
-	url = https://github.com/armory3d/Kinc.git
-	branch = main
+	url = https://github.com/e2002e/Kinc.git
+	branch = c7c842c7
 [submodule "Tools/linux_x64"]
 	path = Tools/linux_x64
 	url = https://github.com/armory3d/KhaTools_linux_x64.git

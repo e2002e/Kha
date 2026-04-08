@@ -20,6 +20,7 @@ class Sound extends kha.Sound {
 
 	function initOgg(filename: String) {
 		compressedData = File.getBytes(filename);
+		uncompress(() -> {});
 	}
 
 	public function new(filename: String) {

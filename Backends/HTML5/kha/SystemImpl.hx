@@ -6,8 +6,10 @@ import js.html.CanvasElement;
 import js.html.ClipboardEvent;
 import js.html.DeviceMotionEvent;
 import js.html.DeviceOrientationEvent;
+import js.html.DragEvent;
 import js.html.KeyboardEvent;
 import js.html.MouseEvent;
+import js.html.PointerEvent;
 import js.html.Touch;
 import js.html.TouchEvent;
 import js.html.WebSocket;
@@ -213,6 +215,7 @@ class SystemImpl {
 	}
 
 	public static function vibrate(ms: Int): Void {
+		if (Browser.navigator.vibrate == null) return;
 		Browser.navigator.vibrate(ms);
 	}
 
@@ -311,14 +314,14 @@ class SystemImpl {
 	}
 
 	public static function copyToClipboard(text: String) {
-		var textArea = Browser.document.createElement("textarea");
-		untyped textArea.value = text;
+		var textArea = Browser.document.createTextAreaElement();
+		textArea.value = text;
 		textArea.style.top = "0";
 		textArea.style.left = "0";
 		textArea.style.position = "fixed";
 		Browser.document.body.appendChild(textArea);
 		textArea.focus();
-		untyped textArea.select();
+		textArea.select();
 		try {
 			Browser.document.execCommand("copy");
 		}
@@ -460,7 +463,7 @@ class SystemImpl {
 		}
 		// canvas.getContext("2d").scale(transform, transform);
 
-		if (!mobile && kha.audio2.Audio._init()) {
+		if ((!mobile || options.audio.allowMobileWebAudio) && kha.audio2.Audio._init()) {
 			SystemImpl._hasWebAudio = true;
 			kha.audio2.Audio1._init();
 		}
@@ -480,7 +483,7 @@ class SystemImpl {
 		canvas.focus();
 
 		#if kha_disable_context_menu
-		canvas.oncontextmenu = function(event: Dynamic) {
+		canvas.oncontextmenu = function(event: PointerEvent) {
 			event.stopPropagation();
 			event.preventDefault();
 		}
@@ -503,12 +506,12 @@ class SystemImpl {
 		canvas.addEventListener("touchend", touchUp, false);
 		canvas.addEventListener("touchmove", touchMove, false);
 		canvas.addEventListener("touchcancel", touchCancel, false);
+		// prevent dragging canvas like images in Firefox
+		canvas.addEventListener("dragstart", (e: DragEvent) -> e.preventDefault());
+		// prevent dropping local files on page and replacing page with them
+		Browser.document.addEventListener("dragover", (e: DragEvent) -> e.preventDefault());
 
-		Browser.document.addEventListener("dragover", function(event) {
-			event.preventDefault();
-		});
-
-		Browser.document.addEventListener("drop", function(event: js.html.DragEvent) {
+		Browser.document.addEventListener("drop", function(event: DragEvent) {
 			event.preventDefault();
 			if (event.dataTransfer != null && event.dataTransfer.files != null) {
 				for (file in event.dataTransfer.files) {
@@ -529,14 +532,7 @@ class SystemImpl {
 	static function initAnimate(callback: Window->Void) {
 		var canvas: CanvasElement = getCanvasElement();
 
-		var window: Dynamic = Browser.window;
-		var requestAnimationFrame = window.requestAnimationFrame;
-		if (requestAnimationFrame == null)
-			requestAnimationFrame = window.mozRequestAnimationFrame;
-		if (requestAnimationFrame == null)
-			requestAnimationFrame = window.webkitRequestAnimationFrame;
-		if (requestAnimationFrame == null)
-			requestAnimationFrame = window.msRequestAnimationFrame;
+		final window = Browser.window;
 
 		var isRefreshRateDetectionActive = false;
 		var lastTimestamp = 0.0;
@@ -547,10 +543,7 @@ class SystemImpl {
 		];
 
 		function animate(timestamp) {
-			if (requestAnimationFrame == null)
-				Browser.window.setTimeout(animate, 1000.0 / 60.0);
-			else
-				requestAnimationFrame(animate);
+			window.requestAnimationFrame(animate);
 
 			var sysGamepads = getGamepads();
 			if (sysGamepads != null) {
@@ -631,64 +624,38 @@ class SystemImpl {
 		}, 500);
 
 		Scheduler.start();
-		requestAnimationFrame(animate);
+		window.requestAnimationFrame(animate);
 		callback(SystemImpl.window);
 	}
 
 	public static function lockMouse(): Void {
-		untyped if (SystemImpl.khanvas.requestPointerLock) {
+		if (SystemImpl.khanvas.requestPointerLock != null) {
 			SystemImpl.khanvas.requestPointerLock();
-		}
-		else if (SystemImpl.khanvas.mozRequestPointerLock) {
-			SystemImpl.khanvas.mozRequestPointerLock();
-		}
-		else if (SystemImpl.khanvas.webkitRequestPointerLock) {
-			SystemImpl.khanvas.webkitRequestPointerLock();
 		}
 	}
 
 	public static function unlockMouse(): Void {
-		untyped if (document.exitPointerLock) {
-			document.exitPointerLock();
-		}
-		else if (document.mozExitPointerLock) {
-			document.mozExitPointerLock();
-		}
-		else if (document.webkitExitPointerLock) {
-			document.webkitExitPointerLock();
+		if (Browser.document.exitPointerLock != null) {
+			Browser.document.exitPointerLock();
 		}
 	}
 
 	public static function canLockMouse(): Bool {
-		return Syntax.code("'pointerLockElement' in document ||
-		'mozPointerLockElement' in document ||
-		'webkitPointerLockElement' in document");
+		return Syntax.code("'pointerLockElement' in document");
 	}
 
 	public static function isMouseLocked(): Bool {
-		return Syntax.code("document.pointerLockElement === kha_SystemImpl.khanvas ||
-			document.mozPointerLockElement === kha_SystemImpl.khanvas ||
-			document.webkitPointerLockElement === kha_SystemImpl.khanvas");
+		return Syntax.code("document.pointerLockElement === kha_SystemImpl.khanvas");
 	}
 
 	public static function notifyOfMouseLockChange(func: Void->Void, error: Void->Void): Void {
 		js.Browser.document.addEventListener("pointerlockchange", func, false);
-		js.Browser.document.addEventListener("mozpointerlockchange", func, false);
-		js.Browser.document.addEventListener("webkitpointerlockchange", func, false);
-
 		js.Browser.document.addEventListener("pointerlockerror", error, false);
-		js.Browser.document.addEventListener("mozpointerlockerror", error, false);
-		js.Browser.document.addEventListener("webkitpointerlockerror", error, false);
 	}
 
 	public static function removeFromMouseLockChange(func: Void->Void, error: Void->Void): Void {
 		js.Browser.document.removeEventListener("pointerlockchange", func, false);
-		js.Browser.document.removeEventListener("mozpointerlockchange", func, false);
-		js.Browser.document.removeEventListener("webkitpointerlockchange", func, false);
-
 		js.Browser.document.removeEventListener("pointerlockerror", error, false);
-		js.Browser.document.removeEventListener("mozpointerlockerror", error, false);
-		js.Browser.document.removeEventListener("webkitpointerlockerror", error, false);
 	}
 
 	static function setMouseXY(event: MouseEvent): Void {
@@ -894,13 +861,6 @@ class SystemImpl {
 		var movementX = event.movementX;
 		var movementY = event.movementY;
 
-		if (event.movementX == null) {
-			movementX = (untyped event.mozMovementX != null) ? untyped event.mozMovementX : ((untyped event.webkitMovementX != null) ? untyped event.webkitMovementX : (mouseX
-				- lastMouseX));
-			movementY = (untyped event.mozMovementY != null) ? untyped event.mozMovementY : ((untyped event.webkitMovementY != null) ? untyped event.webkitMovementY : (mouseY
-				- lastMouseY));
-		}
-
 		// this ensures same behaviour across browser until they fix it
 		if (firefox) {
 			movementX = Std.int(movementX * Browser.window.devicePixelRatio);
@@ -948,7 +908,9 @@ class SystemImpl {
 			}
 
 			setTouchXY(touch);
-			mouse.sendDownEvent(0, 0, touchX, touchY);
+			if (!Surface.listenedEventsBefore) {
+				mouse.sendDownEvent(0, 0, touchX, touchY);
+			}
 			surface.sendTouchStartEvent(id, touchX, touchY);
 			if (index == 0) {
 				lastFirstTouchX = touchX;
@@ -971,7 +933,9 @@ class SystemImpl {
 			}
 
 			setTouchXY(touch);
-			mouse.sendUpEvent(0, 0, touchX, touchY);
+			if (!Surface.listenedEventsBefore) {
+				mouse.sendUpEvent(0, 0, touchX, touchY);
+			}
 			surface.sendTouchEndEvent(id, touchX, touchY);
 		}
 		insideInputEvent = false;
@@ -990,7 +954,9 @@ class SystemImpl {
 				lastFirstTouchX = touchX;
 				lastFirstTouchY = touchY;
 
-				mouse.sendMoveEvent(0, touchX, touchY, movementX, movementY);
+				if (!Surface.listenedEventsBefore) {
+					mouse.sendMoveEvent(0, touchX, touchY, movementX, movementY);
+				}
 			}
 			var id = touch.identifier;
 			if (ios)
@@ -1012,7 +978,9 @@ class SystemImpl {
 				id = iosTouchs.indexOf(id);
 
 			setTouchXY(touch);
-			mouse.sendUpEvent(0, 0, touchX, touchY);
+			if (!Surface.listenedEventsBefore) {
+				mouse.sendUpEvent(0, 0, touchX, touchY);
+			}
 			surface.sendTouchEndEvent(id, touchX, touchY);
 		}
 		iosTouchs = [];
@@ -1303,15 +1271,45 @@ class SystemImpl {
 		return "unknown";
 	}
 
-	public static function setGamepadRumble(index: Int, leftAmount: Float, rightAmount: Float) {}
+	public static function setGamepadRumble(index: Int, leftAmount: Float, rightAmount: Float): Void {
+		final sysGamepads = getGamepads();
+		if (sysGamepads == null || sysGamepads[index] == null) {
+			return;
+		}
+
+		final gamepad = sysGamepads[index];
+		final duration = 10000; // 10 seconds
+
+		if (untyped gamepad.vibrationActuator) {
+			if (leftAmount == 0 && rightAmount == 0) {
+				untyped gamepad.vibrationActuator.reset();
+			}
+			else {
+				untyped gamepad.vibrationActuator.playEffect('dual-rumble', {
+					duration: duration,
+					strongMagnitude: leftAmount,
+					weakMagnitude: rightAmount
+				});
+			}
+		}
+		else if (untyped gamepad.hapticActuators && untyped gamepad.hapticActuators.length > 0) {
+			final hapticActuator = untyped gamepad.hapticActuators[0];
+			if (leftAmount == 0 && rightAmount == 0) {
+				untyped gamepad.hapticActuators[0].pulse(0, 0);
+			}
+			else {
+				untyped gamepad.hapticActuators[0].pulse(leftAmount, duration);
+			}
+		}
+	}
 
 	static function getGamepads(): Array<js.html.Gamepad> {
 		if (chrome && kha.vr.VrInterface.instance != null && kha.vr.VrInterface.instance.IsVrEnabled()) {
 			return null; // Chrome crashes if navigator.getGamepads() is called when using VR
 		}
 
-		if (untyped navigator.getGamepads) {
-			return js.Browser.navigator.getGamepads();
+		if (Browser.navigator.getGamepads != null) {
+			return Browser.navigator.getGamepads();
 		}
 		else {
 			return null;

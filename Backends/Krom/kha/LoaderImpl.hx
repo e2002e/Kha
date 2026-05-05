@@ -30,15 +30,15 @@ class LoaderImpl {
 	}
 
 	public static function loadSoundFromDescription(desc: Dynamic, done: kha.Sound->Void, failed: AssetError->Void) {
-		var sound = Krom.loadSound(desc.files[0]);
-		if (sound == null) {
+		var sound = new kha.krom.Sound(desc.files[0]);
+		if (sound.uncompressedData == null) {
 			failed({
 				url: desc.files.join(","),
 				error: "Could not load sound(s)",
 			});
 		}
 		else {
-			done(new kha.krom.Sound(Bytes.ofData(sound)));
+			done(sound);
 		}
 	}
 
